@@ -1,0 +1,999 @@
+
+Stack Overflow
+Sign up
+Log in
+Questions Jobs Tags Users Badges Ask
+Up vote
+424
+Down vote
+
+How to get current CPU and RAM usage in Python?
+python system cpu status ram
+What's your preferred way of getting current system status (current CPU, RAM, free disk space, etc.) in Python? Bonus points for *nix and Windows platforms.
+
+There seems to be a few possible ways of extracting that from my search:
+
+Using a library such as PSI (that currently seems not actively developed and not supported on multiple platform) or something like pystatgrab (again no activity since 2007 it seems and no support for Windows).
+
+Using platform specific code such as using a os.popen("ps") or similar for the *nix systems and MEMORYSTATUS in ctypes.windll.kernel32 (see this recipe on ActiveState) for the Windows platform. One could put a Python class together with all those code snippets.
+
+It's not that those methods are bad but is there already a well-supported, multi-platform way of doing the same thing?
+
+Share Improve this question Follow
+asked
+Nov 9 '08 at 16:04
+
+lpfavreau
+12k●55 gold badges●2828 silver badges●3636 bronze badges edited
+Oct 2 '12 at 19:30
+
+Keith Pinson
+7,342●66 gold badges●5555 silver badges●9797 bronze badges
+You could build your own multiplatform library by using dynamic imports: "if sys.platform == 'win32': import win_sysstatus as sysstatus; else" ... – 
+John Fouhy
+ Nov 10 '08 at 0:02
+1
+It would be cool to have something that works on App Engine too. – 
+Attila O.
+ Mar 30 '11 at 15:16
+1
+Is the age of the packages significant? If someone got them right first time, why wouldn't they still be right? – 
+Paul Smith
+ Dec 20 '16 at 15:10
+Add a comment
+19 Answers
+order by 
+Up vote
+522
+Down vote
+Accepted
+The psutil library gives you information about CPU, RAM, etc., on a variety of platforms:
+
+psutil is a module providing an interface for retrieving information on running processes and system utilization (CPU, memory) in a portable way by using Python, implementing many functionalities offered by tools like ps, top and Windows task manager.
+
+It currently supports Linux, Windows, OSX, Sun Solaris, FreeBSD, OpenBSD and NetBSD, both 32-bit and 64-bit architectures, with Python versions from 2.6 to 3.5 (users of Python 2.4 and 2.5 may use 2.1.3 version).
+
+Some examples:
+
+#!/usr/bin/env python
+import psutil
+# gives a single float value
+psutil.cpu_percent()
+# gives an object with many fields
+psutil.virtual_memory()
+# you can convert that object to a dictionary 
+dict(psutil.virtual_memory()._asdict())
+# you can have the percentage of used RAM
+psutil.virtual_memory().percent
+79.2
+# you can calculate percentage of available memory
+psutil.virtual_memory().available * 100 / psutil.virtual_memory().total
+20.8
+Here's other documentation that provides more concepts and interest concepts:
+
+https://psutil.readthedocs.io/en/latest/
+Share Improve this answer Follow
+answered
+Mar 18 '10 at 10:24
+
+Jon Cage
+34k●3232 gold badges●122122 silver badges●206206 bronze badges edited
+Jun 20 '20 at 9:12
+
+CommunityBot
+1●11 silver badge
+38
+Worked for me on OSX: $ pip install psutil; >>> import psutil; psutil.cpu_percent() and >>> psutil.virtual_memory() which returns a nice vmem object: vmem(total=8589934592L, available=4073336832L, percent=52.6, used=5022085120L, free=3560255488L, active=2817949696L, inactive=513081344L, wired=1691054080L) – 
+hobs
+ May 17 '13 at 17:28
+12
+How would one do this without the psutil library? – 
+BigBrownBear00
+ Jan 25 '15 at 10:44
+2
+@user1054424 There is a builtin library in python called resource. However, it seems the most you can do with it is grab the memory that a single python process is using and/or it's child processes. It also doesn't seem very accurate. A quick test showed resource being off by about 2MB from my mac's utility tool. – 
+Austin A
+ Jul 17 '15 at 4:31
+15
+@BigBrownBear00 just check source of psutil ;) – 
+Mehulkumar
+ Oct 15 '16 at 5:42
+1
+@Jon Cage hi Jon, may I check with you on the difference between free and available memory? I am planning to use psutil.virtual_memory() to determine how much data i can load into memory for analysis. Thanks for your help! – 
+AiRiFiEd
+ Feb 20 '19 at 3:42
+Show 3 more comments
+Up vote
+82
+Down vote
+Use the psutil library. On Ubuntu 18.04, pip installed 5.5.0 (latest version) as of 1-30-2019. Older versions may behave somewhat differently. You can check your version of psutil by doing this in Python:
+
+from __future__ import print_function  # for Python2
+import psutil
+print(psutil.__versi‌​on__)
+To get some memory and CPU stats:
+
+from __future__ import print_function
+import psutil
+print(psutil.cpu_percent())
+print(psutil.virtual_memory())  # physical memory usage
+print('memory % used:', psutil.virtual_memory()[2])
+The virtual_memory (tuple) will have the percent memory used system-wide. This seemed to be overestimated by a few percent for me on Ubuntu 18.04.
+
+You can also get the memory used by the current Python instance:
+
+import os
+import psutil
+pid = os.getpid()
+python_process = psutil.Process(pid)
+memoryUse = python_process.memory_info()[0]/2.**30  # memory use in GB...I think
+print('memory use:', memoryUse)
+which gives the current memory use of your Python script.
+
+There are some more in-depth examples on the pypi page for psutil.
+
+Share Improve this answer Follow
+answered
+Aug 16 '16 at 21:07
+
+wordsforthewise
+9,464●44 gold badges●6161 silver badges●9797 bronze badges edited
+Jul 1 at 19:11
+
+please don't call variables py – 
+MrR
+ Jun 24 at 19:32
+I know it's not best practice now, but py isn't a keyword or anything like that. Is there a reason beyond not being a descriptive variable name you are saying don't use py? – 
+wordsforthewise
+ Jun 24 at 22:50
+It's universally used in so many other contexts to indicate "something that pertains to python" e.g. redis-py. I wouldn't use the two-letter py to indicate the current process. – 
+MrR
+ Jul 1 at 13:15
+Add a comment
+Up vote
+47
+Down vote
+Only for Linux: One-liner for the RAM usage with only stdlib dependency:
+
+import os
+tot_m, used_m, free_m = map(int, os.popen('free -t -m').readlines()[-1].split()[1:])
+edit: specified solution OS dependency
+
+Share Improve this answer Follow
+answered
+Feb 16 '17 at 13:24
+
+Hrabal
+2,070●11 gold badge●1717 silver badges●2626 bronze badges edited
+May 13 '19 at 14:56
+
+3
+Very useful! To obtain it directly in human readable units: os.popen('free -th').readlines()[-1].split()[1:]. Note that this line returns a list of strings. – 
+iipr
+ Aug 1 '19 at 17:58
+2
+The python:3.8-slim-buster does not have free – 
+Martin Thoma
+ Apr 28 '20 at 5:21
+Take a look here, @MartinThoma. – 
+Mr. Duhart
+ Sep 30 '20 at 14:53
+used_m, free_m don't add up to tot_m. The results also don't match with htop. What am I misunderstanding? – 
+MiloMinderbinder
+ Apr 29 at 20:41
+Add a comment
+Up vote
+24
+Down vote
+Below codes, without external libraries worked for me. I tested at Python 2.7.9
+
+CPU Usage
+
+import os
+
+    CPU_Pct=str(round(float(os.popen('''grep 'cpu ' /proc/stat | awk '{usage=($2+$4)*100/($2+$4+$5)} END {print usage }' ''').readline()),2))
+
+    #print results
+    print("CPU Usage = " + CPU_Pct)
+And Ram Usage, Total, Used and Free
+
+import os
+mem=str(os.popen('free -t -m').readlines())
+"""
+Get a whole line of memory output, it will be something like below
+['             total       used       free     shared    buffers     cached\n', 
+'Mem:           925        591        334         14         30        355\n', 
+'-/+ buffers/cache:        205        719\n', 
+'Swap:           99          0         99\n', 
+'Total:        1025        591        434\n']
+ So, we need total memory, usage and free memory.
+ We should find the index of capital T which is unique at this string
+"""
+T_ind=mem.index('T')
+"""
+Than, we can recreate the string with this information. After T we have,
+"Total:        " which has 14 characters, so we can start from index of T +14
+and last 4 characters are also not necessary.
+We can create a new sub-string using this information
+"""
+mem_G=mem[T_ind+14:-4]
+"""
+The result will be like
+1025        603        422
+we need to find first index of the first space, and we can start our substring
+from from 0 to this index number, this will give us the string of total memory
+"""
+S1_ind=mem_G.index(' ')
+mem_T=mem_G[0:S1_ind]
+"""
+Similarly we will create a new sub-string, which will start at the second value. 
+The resulting string will be like
+603        422
+Again, we should find the index of first space and than the 
+take the Used Memory and Free memory.
+"""
+mem_G1=mem_G[S1_ind+8:]
+S2_ind=mem_G1.index(' ')
+mem_U=mem_G1[0:S2_ind]
+
+mem_F=mem_G1[S2_ind+8:]
+print 'Summary = ' + mem_G
+print 'Total Memory = ' + mem_T +' MB'
+print 'Used Memory = ' + mem_U +' MB'
+print 'Free Memory = ' + mem_F +' MB'
+Share Improve this answer Follow
+answered
+Feb 15 '17 at 12:24
+
+CodeGench
+1,001●88 silver badges●66 bronze badges edited
+Apr 6 '17 at 18:44
+
+eyllanesc
+208k●1515 gold badges●101101 silver badges●169169 bronze badges
+4
+Don't you think the grep and awk would be better taken care of by string processing in Python? – 
+Reinderien
+ Oct 22 '18 at 12:34 
+1
+Personally not familiar with awk, made an awkless version of the cpu usage snippet below. Very handy, thanks! – 
+Jay
+ Oct 22 '18 at 15:51
+5
+It's disingenuous to say that this code does not use external libraries. In fact, these have a hard dependency on the availability of grep, awk and free. This makes the code above non-portable. The OP stated "Bonus points for *nix and Windows platforms." – 
+Captain Lepton
+ Nov 30 '18 at 10:51
+Add a comment
+Up vote
+14
+Down vote
+To get a line-by-line memory and time analysis of your program, I suggest using memory_profiler and line_profiler.
+
+Installation:
+
+# Time profiler
+$ pip install line_profiler
+# Memory profiler
+$ pip install memory_profiler
+# Install the dependency for a faster analysis
+$ pip install psutil
+The common part is, you specify which function you want to analyse by using the respective decorators.
+
+Example: I have several functions in my Python file main.py that I want to analyse. One of them is linearRegressionfit(). I need to use the decorator @profile that helps me profile the code with respect to both: Time & Memory.
+
+Make the following changes to the function definition
+
+@profile
+def linearRegressionfit(Xt,Yt,Xts,Yts):
+    lr=LinearRegression()
+    model=lr.fit(Xt,Yt)
+    predict=lr.predict(Xts)
+    # More Code
+For Time Profiling,
+
+Run:
+
+$ kernprof -l -v main.py
+Output
+
+Total time: 0.181071 s
+File: main.py
+Function: linearRegressionfit at line 35
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    35                                           @profile
+    36                                           def linearRegressionfit(Xt,Yt,Xts,Yts):
+    37         1         52.0     52.0      0.1      lr=LinearRegression()
+    38         1      28942.0  28942.0     75.2      model=lr.fit(Xt,Yt)
+    39         1       1347.0   1347.0      3.5      predict=lr.predict(Xts)
+    40                                           
+    41         1       4924.0   4924.0     12.8      print("train Accuracy",lr.score(Xt,Yt))
+    42         1       3242.0   3242.0      8.4      print("test Accuracy",lr.score(Xts,Yts))
+For Memory Profiling,
+
+Run:
+
+$ python -m memory_profiler main.py
+Output
+
+Filename: main.py
+
+Line #    Mem usage    Increment   Line Contents
+================================================
+    35  125.992 MiB  125.992 MiB   @profile
+    36                             def linearRegressionfit(Xt,Yt,Xts,Yts):
+    37  125.992 MiB    0.000 MiB       lr=LinearRegression()
+    38  130.547 MiB    4.555 MiB       model=lr.fit(Xt,Yt)
+    39  130.547 MiB    0.000 MiB       predict=lr.predict(Xts)
+    40                             
+    41  130.547 MiB    0.000 MiB       print("train Accuracy",lr.score(Xt,Yt))
+    42  130.547 MiB    0.000 MiB       print("test Accuracy",lr.score(Xts,Yts))
+Also, the memory profiler results can also be plotted using matplotlib using
+
+$ mprof run main.py
+$ mprof plot
+enter image description hereNote: Tested on
+
+line_profiler version == 3.0.2
+
+memory_profiler version == 0.57.0
+
+psutil version == 5.7.0
+
+EDIT: The results from the profilers can be parsed using the TAMPPA package. Using it, we can get line-by-line desired plots asplot
+
+Share Improve this answer Follow
+answered
+May 20 '20 at 10:00
+
+Pe Dro
+1,420●11 gold badge●1414 silver badges●3030 bronze badges edited
+Aug 1 '20 at 15:06
+
+Up vote
+13
+Down vote
+Here's something I put together a while ago, it's windows only but may help you get part of what you need done.
+
+Derived from: "for sys available mem" http://msdn2.microsoft.com/en-us/library/aa455130.aspx
+
+"individual process information and python script examples" http://www.microsoft.com/technet/scriptcenter/scripts/default.mspx?mfr=true
+
+NOTE: the WMI interface/process is also available for performing similar tasks I'm not using it here because the current method covers my needs, but if someday it's needed to extend or improve this, then may want to investigate the WMI tools a vailable.
+
+WMI for python:
+
+http://tgolden.sc.sabren.com/python/wmi.html
+
+The code:
+
+'''
+Monitor window processes
+
+derived from:
+>for sys available mem
+http://msdn2.microsoft.com/en-us/library/aa455130.aspx
+
+> individual process information and python script examples
+http://www.microsoft.com/technet/scriptcenter/scripts/default.mspx?mfr=true
+
+NOTE: the WMI interface/process is also available for performing similar tasks
+        I'm not using it here because the current method covers my needs, but if someday it's needed
+        to extend or improve this module, then may want to investigate the WMI tools available.
+        WMI for python:
+        http://tgolden.sc.sabren.com/python/wmi.html
+'''
+
+__revision__ = 3
+
+import win32com.client
+from ctypes import *
+from ctypes.wintypes import *
+import pythoncom
+import pywintypes
+import datetime
+
+
+class MEMORYSTATUS(Structure):
+    _fields_ = [
+                ('dwLength', DWORD),
+                ('dwMemoryLoad', DWORD),
+                ('dwTotalPhys', DWORD),
+                ('dwAvailPhys', DWORD),
+                ('dwTotalPageFile', DWORD),
+                ('dwAvailPageFile', DWORD),
+                ('dwTotalVirtual', DWORD),
+                ('dwAvailVirtual', DWORD),
+                ]
+
+
+def winmem():
+    x = MEMORYSTATUS() # create the structure
+    windll.kernel32.GlobalMemoryStatus(byref(x)) # from cytypes.wintypes
+    return x    
+
+
+class process_stats:
+    '''process_stats is able to provide counters of (all?) the items available in perfmon.
+    Refer to the self.supported_types keys for the currently supported 'Performance Objects'
+    
+    To add logging support for other data you can derive the necessary data from perfmon:
+    ---------
+    perfmon can be run from windows 'run' menu by entering 'perfmon' and enter.
+    Clicking on the '+' will open the 'add counters' menu,
+    From the 'Add Counters' dialog, the 'Performance object' is the self.support_types key.
+    --> Where spaces are removed and symbols are entered as text (Ex. # == Number, % == Percent)
+    For the items you wish to log add the proper attribute name in the list in the self.supported_types dictionary,
+    keyed by the 'Performance Object' name as mentioned above.
+    ---------
+    
+    NOTE: The 'NETFramework_NETCLRMemory' key does not seem to log dotnet 2.0 properly.
+    
+    Initially the python implementation was derived from:
+    http://www.microsoft.com/technet/scriptcenter/scripts/default.mspx?mfr=true
+    '''
+    def __init__(self,process_name_list=[],perf_object_list=[],filter_list=[]):
+        '''process_names_list == the list of all processes to log (if empty log all)
+        perf_object_list == list of process counters to log
+        filter_list == list of text to filter
+        print_results == boolean, output to stdout
+        '''
+        pythoncom.CoInitialize() # Needed when run by the same process in a thread
+        
+        self.process_name_list = process_name_list
+        self.perf_object_list = perf_object_list
+        self.filter_list = filter_list
+        
+        self.win32_perf_base = 'Win32_PerfFormattedData_'
+        
+        # Define new datatypes here!
+        self.supported_types = {
+                                    'NETFramework_NETCLRMemory':    [
+                                                                        'Name',
+                                                                        'NumberTotalCommittedBytes',
+                                                                        'NumberTotalReservedBytes',
+                                                                        'NumberInducedGC',    
+                                                                        'NumberGen0Collections',
+                                                                        'NumberGen1Collections',
+                                                                        'NumberGen2Collections',
+                                                                        'PromotedMemoryFromGen0',
+                                                                        'PromotedMemoryFromGen1',
+                                                                        'PercentTimeInGC',
+                                                                        'LargeObjectHeapSize'
+                                                                     ],
+                                                                     
+                                    'PerfProc_Process':              [
+                                                                          'Name',
+                                                                          'PrivateBytes',
+                                                                          'ElapsedTime',
+                                                                          'IDProcess',# pid
+                                                                          'Caption',
+                                                                          'CreatingProcessID',
+                                                                          'Description',
+                                                                          'IODataBytesPersec',
+                                                                          'IODataOperationsPersec',
+                                                                          'IOOtherBytesPersec',
+                                                                          'IOOtherOperationsPersec',
+                                                                          'IOReadBytesPersec',
+                                                                          'IOReadOperationsPersec',
+                                                                          'IOWriteBytesPersec',
+                                                                          'IOWriteOperationsPersec'     
+                                                                      ]
+                                }
+        
+    def get_pid_stats(self, pid):
+        this_proc_dict = {}
+        
+        pythoncom.CoInitialize() # Needed when run by the same process in a thread
+        if not self.perf_object_list:
+            perf_object_list = self.supported_types.keys()
+                    
+        for counter_type in perf_object_list:
+            strComputer = "."
+            objWMIService = win32com.client.Dispatch("WbemScripting.SWbemLocator")
+            objSWbemServices = objWMIService.ConnectServer(strComputer,"root\cimv2")
+        
+            query_str = '''Select * from %s%s''' % (self.win32_perf_base,counter_type)
+            colItems = objSWbemServices.ExecQuery(query_str) # "Select * from Win32_PerfFormattedData_PerfProc_Process")# changed from Win32_Thread        
+        
+            if len(colItems) > 0:        
+                for objItem in colItems:
+                    if hasattr(objItem, 'IDProcess') and pid == objItem.IDProcess:
+                        
+                            for attribute in self.supported_types[counter_type]:
+                                eval_str = 'objItem.%s' % (attribute)
+                                this_proc_dict[attribute] = eval(eval_str)
+                                
+                            this_proc_dict['TimeStamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.') + str(datetime.datetime.now().microsecond)[:3]
+                            break
+
+        return this_proc_dict      
+                      
+        
+    def get_stats(self):
+        '''
+        Show process stats for all processes in given list, if none given return all processes   
+        If filter list is defined return only the items that match or contained in the list
+        Returns a list of result dictionaries
+        '''    
+        pythoncom.CoInitialize() # Needed when run by the same process in a thread
+        proc_results_list = []
+        if not self.perf_object_list:
+            perf_object_list = self.supported_types.keys()
+                    
+        for counter_type in perf_object_list:
+            strComputer = "."
+            objWMIService = win32com.client.Dispatch("WbemScripting.SWbemLocator")
+            objSWbemServices = objWMIService.ConnectServer(strComputer,"root\cimv2")
+        
+            query_str = '''Select * from %s%s''' % (self.win32_perf_base,counter_type)
+            colItems = objSWbemServices.ExecQuery(query_str) # "Select * from Win32_PerfFormattedData_PerfProc_Process")# changed from Win32_Thread
+       
+            try:  
+                if len(colItems) > 0:
+                    for objItem in colItems:
+                        found_flag = False
+                        this_proc_dict = {}
+                        
+                        if not self.process_name_list:
+                            found_flag = True
+                        else:
+                            # Check if process name is in the process name list, allow print if it is
+                            for proc_name in self.process_name_list:
+                                obj_name = objItem.Name
+                                if proc_name.lower() in obj_name.lower(): # will log if contains name
+                                    found_flag = True
+                                    break
+                                
+                        if found_flag:
+                            for attribute in self.supported_types[counter_type]:
+                                eval_str = 'objItem.%s' % (attribute)
+                                this_proc_dict[attribute] = eval(eval_str)
+                                
+                            this_proc_dict['TimeStamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.') + str(datetime.datetime.now().microsecond)[:3]
+                            proc_results_list.append(this_proc_dict)
+                    
+            except pywintypes.com_error, err_msg:
+                # Ignore and continue (proc_mem_logger calls this function once per second)
+                continue
+        return proc_results_list     
+
+    
+def get_sys_stats():
+    ''' Returns a dictionary of the system stats'''
+    pythoncom.CoInitialize() # Needed when run by the same process in a thread
+    x = winmem()
+    
+    sys_dict = { 
+                    'dwAvailPhys': x.dwAvailPhys,
+                    'dwAvailVirtual':x.dwAvailVirtual
+                }
+    return sys_dict
+
+    
+if __name__ == '__main__':
+    # This area used for testing only
+    sys_dict = get_sys_stats()
+    
+    stats_processor = process_stats(process_name_list=['process2watch'],perf_object_list=[],filter_list=[])
+    proc_results = stats_processor.get_stats()
+    
+    for result_dict in proc_results:
+        print result_dict
+        
+    import os
+    this_pid = os.getpid()
+    this_proc_results = stats_processor.get_pid_stats(this_pid)
+    
+    print 'this proc results:'
+    print this_proc_results
+Share Improve this answer Follow
+answered
+Nov 10 '08 at 2:38
+
+monkut
+37.5k●2222 gold badges●111111 silver badges●142142 bronze badges edited
+Jul 1 at 6:21
+
+Use GlobalMemoryStatusEx instead of GlobalMemoryStatus because the old one can return bad values. – 
+phobie
+ Sep 25 '12 at 18:15
+9
+You should avoid from x import * statements! They clutter the main-namespace and overwrite other functions and variables. – 
+phobie
+ Sep 25 '12 at 18:33
+Add a comment
+Up vote
+9
+Down vote
+We chose to use usual information source for this because we could find instantaneous fluctuations in free memory and felt querying the meminfo data source was helpful. This also helped us get a few more related parameters that were pre-parsed.
+
+Code
+
+import os
+
+linux_filepath = "/proc/meminfo"
+meminfo = dict(
+    (i.split()[0].rstrip(":"), int(i.split()[1]))
+    for i in open(linux_filepath).readlines()
+)
+meminfo["memory_total_gb"] = meminfo["MemTotal"] / (2 ** 20)
+meminfo["memory_free_gb"] = meminfo["MemFree"] / (2 ** 20)
+meminfo["memory_available_gb"] = meminfo["MemAvailable"] / (2 ** 20)
+Output for reference (we stripped all newlines for further analysis)
+
+MemTotal: 1014500 kB MemFree: 562680 kB MemAvailable: 646364 kB Buffers: 15144 kB Cached: 210720 kB SwapCached: 0 kB Active: 261476 kB Inactive: 128888 kB Active(anon): 167092 kB Inactive(anon): 20888 kB Active(file): 94384 kB Inactive(file): 108000 kB Unevictable: 3652 kB Mlocked: 3652 kB SwapTotal: 0 kB SwapFree: 0 kB Dirty: 0 kB Writeback: 0 kB AnonPages: 168160 kB Mapped: 81352 kB Shmem: 21060 kB Slab: 34492 kB SReclaimable: 18044 kB SUnreclaim: 16448 kB KernelStack: 2672 kB PageTables: 8180 kB NFS_Unstable: 0 kB Bounce: 0 kB WritebackTmp: 0 kB CommitLimit: 507248 kB Committed_AS: 1038756 kB VmallocTotal: 34359738367 kB VmallocUsed: 0 kB VmallocChunk: 0 kB HardwareCorrupted: 0 kB AnonHugePages: 88064 kB CmaTotal: 0 kB CmaFree: 0 kB HugePages_Total: 0 HugePages_Free: 0 HugePages_Rsvd: 0 HugePages_Surp: 0 Hugepagesize: 2048 kB DirectMap4k: 43008 kB DirectMap2M: 1005568 kB
+
+Share Improve this answer Follow
+answered
+Sep 29 '18 at 15:30
+
+Rahul
+1,116●11 gold badge●1414 silver badges●1717 bronze badges edited
+Apr 28 '20 at 5:28
+
+Martin Thoma
+97.8k●124124 gold badges●520520 silver badges●793793 bronze badges
+Seems not to work as expected: stackoverflow.com/q/61498709/562769 – 
+Martin Thoma
+ Apr 29 '20 at 11:13
+Add a comment
+Up vote
+8
+Down vote
+I feel like these answers were written for Python 2, and in any case nobody's made mention of the standard resource package that's available for Python 3. It provides commands for obtaining the resource limits of a given process (the calling Python process by default). This isn't the same as getting the current usage of resources by the system as a whole, but it could solve some of the same problems like e.g. "I want to make sure I only use X much RAM with this script."
+
+Share Improve this answer Follow
+answered
+Mar 24 '18 at 17:43
+
+anoneemus
+329●33 silver badges●1212 bronze badges
+Up vote
+7
+Down vote
+This aggregate all the goodies: psutil + os to get Unix & Windows compatibility: That allows us to get:
+
+CPU
+memory
+disk
+code:
+
+import os
+import psutil  # need: pip install psutil
+
+In [32]: psutil.virtual_memory()
+Out[32]: svmem(total=6247907328, available=2502328320, percent=59.9, used=3327135744, free=167067648, active=3671199744, inactive=1662668800,     buffers=844783616, cached=1908920320, shared=123912192, slab=613048320)
+
+In [33]: psutil.virtual_memory().percent
+Out[33]: 60.0
+
+In [34]: psutil.cpu_percent()
+Out[34]: 5.5
+
+In [35]: os.sep
+Out[35]: '/'
+
+In [36]: psutil.disk_usage(os.sep)
+Out[36]: sdiskusage(total=50190790656, used=41343860736, free=6467502080, percent=86.5)
+
+In [37]: psutil.disk_usage(os.sep).percent
+Out[37]: 86.5
+Share Improve this answer Follow
+answered
+Dec 10 '20 at 14:43
+
+Rea Haas
+618●88 silver badges●1010 bronze badges
+Up vote
+5
+Down vote
+"... current system status (current CPU, RAM, free disk space, etc.)" And "*nix and Windows platforms" can be a difficult combination to achieve.
+
+The operating systems are fundamentally different in the way they manage these resources. Indeed, they differ in core concepts like defining what counts as system and what counts as application time.
+
+"Free disk space"? What counts as "disk space?" All partitions of all devices? What about foreign partitions in a multi-boot environment?
+
+I don't think there's a clear enough consensus between Windows and *nix that makes this possible. Indeed, there may not even be any consensus between the various operating systems called Windows. Is there a single Windows API that works for both XP and Vista?
+
+Share Improve this answer Follow
+answered
+Nov 9 '08 at 18:50
+
+S.Lott
+365k●7575 gold badges●490490 silver badges●762762 bronze badges
+4
+df -h answers the "disk space" question both on Windows and *nix. – 
+jfs
+ Nov 10 '08 at 20:44
+4
+@J.F.Sebastian: Which Windows? I get a 'df' is not recognized... error message from Windows XP Pro. What am I missing? – 
+S.Lott
+ Nov 10 '08 at 20:54
+3
+you can install new programs on Windows too. – 
+jfs
+ Mar 24 '15 at 18:59
+Add a comment
+Up vote
+4
+Down vote
+This script for CPU usage:
+
+import os
+
+def get_cpu_load():
+    """ Returns a list CPU Loads"""
+    result = []
+    cmd = "WMIC CPU GET LoadPercentage "
+    response = os.popen(cmd + ' 2>&1','r').read().strip().split("\r\n")
+    for load in response[1:]:
+       result.append(int(load))
+    return result
+
+if __name__ == '__main__':
+    print get_cpu_load()
+Share Improve this answer Follow
+answered
+Oct 1 '18 at 7:06
+
+Subhash
+675●77 silver badges●2323 bronze badges
+Up vote
+4
+Down vote
+Taken feedback from first response and done small changes
+
+#!/usr/bin/env python
+#Execute commond on windows machine to install psutil>>>>python -m pip install psutil
+import psutil
+
+print ('                                                                   ')
+print ('----------------------CPU Information summary----------------------')
+print ('                                                                   ')
+
+# gives a single float value
+vcc=psutil.cpu_count()
+print ('Total number of CPUs :',vcc)
+
+vcpu=psutil.cpu_percent()
+print ('Total CPUs utilized percentage :',vcpu,'%')
+
+print ('                                                                   ')
+print ('----------------------RAM Information summary----------------------')
+print ('                                                                   ')
+# you can convert that object to a dictionary 
+#print(dict(psutil.virtual_memory()._asdict()))
+# gives an object with many fields
+vvm=psutil.virtual_memory()
+
+x=dict(psutil.virtual_memory()._asdict())
+
+def forloop():
+    for i in x:
+        print (i,"--",x[i]/1024/1024/1024)#Output will be printed in GBs
+
+forloop()
+print ('                                                                   ')
+print ('----------------------RAM Utilization summary----------------------')
+print ('                                                                   ')
+# you can have the percentage of used RAM
+print('Percentage of used RAM :',psutil.virtual_memory().percent,'%')
+#79.2
+# you can calculate percentage of available memory
+print('Percentage of available RAM :',psutil.virtual_memory().available * 100 / psutil.virtual_memory().total,'%')
+#20.8
+Share Improve this answer Follow
+answered
+Jul 7 '20 at 15:16
+
+sudhirkondle
+107●55 bronze badges edited
+Aug 23 at 6:53
+
+tripleee
+146k●2626 gold badges●218218 silver badges●276276 bronze badges
+Up vote
+3
+Down vote
+For CPU details use psutil library
+
+https://psutil.readthedocs.io/en/latest/#cpu
+
+For RAM Frequency (in MHz) use the built in Linux library dmidecode and manipulate the output a bit ;). this command needs root permission hence supply your password too. just copy the following commend replacing mypass with your password
+
+import os
+
+os.system("echo mypass | sudo -S dmidecode -t memory | grep 'Clock Speed' | cut -d ':' -f2")
+
+------------------- Output ---------------------------
+1600 MT/s
+Unknown
+1600 MT/s
+Unknown 0
+
+more specificly
+[i for i in os.popen("echo mypass | sudo -S dmidecode -t memory | grep 'Clock Speed' | cut -d ':' -f2").read().split(' ') if i.isdigit()]
+-------------------------- output -------------------------
+['1600', '1600']
+
+Share Improve this answer Follow
+answered
+Apr 21 '19 at 12:14
+
+Saptarshi Ghosh
+31●22 bronze badges edited
+Apr 21 '19 at 13:26
+
+add some more description – 
+Paras Korat
+ Apr 21 '19 at 12:17
+Add a comment
+Up vote
+3
+Down vote
+you can read /proc/meminfo to get used memory
+
+file1 = open('/proc/meminfo', 'r') 
+
+for line in file1: 
+    if 'MemTotal' in line: 
+        x = line.split()
+        memTotal = int(x[1])
+        
+    if 'Buffers' in line: 
+        x = line.split()
+        buffers = int(x[1])
+        
+    if 'Cached' in line and 'SwapCached' not in line: 
+        x = line.split()
+        cached = int(x[1])
+    
+    if 'MemFree' in line: 
+        x = line.split()
+        memFree = int(x[1])
+
+file1.close()
+
+percentage_used = int ( ( memTotal - (buffers + cached + memFree) ) / memTotal * 100 )
+print(percentage_used)
+Share Improve this answer Follow
+answered
+Nov 10 '20 at 16:03
+
+Leroy Kayanda
+43●11 silver badge●99 bronze badges
+This is obviously specific to Linux. – 
+tripleee
+ Aug 23 at 6:50
+Add a comment
+Up vote
+1
+Down vote
+Based on the cpu usage code by @Hrabal, this is what I use:
+
+from subprocess import Popen, PIPE
+
+def get_cpu_usage():
+    ''' Get CPU usage on Linux by reading /proc/stat '''
+
+    sub = Popen(('grep', 'cpu', '/proc/stat'), stdout=PIPE, stderr=PIPE)
+    top_vals = [int(val) for val in sub.communicate()[0].split('\n')[0].split[1:5]]
+
+    return (top_vals[0] + top_vals[2]) * 100. /(top_vals[0] + top_vals[2] + top_vals[3])
+Share Improve this answer Follow
+answered
+Oct 22 '18 at 15:50
+
+Jay
+1,744●2424 silver badges●3737 bronze badges
+Up vote
+1
+Down vote
+You can use psutil or psmem with subprocess example code
+
+import subprocess
+cmd =   subprocess.Popen(['sudo','./ps_mem'],stdout=subprocess.PIPE,stderr=subprocess.PIPE) 
+out,error = cmd.communicate() 
+memory = out.splitlines()
+Reference
+
+https://github.com/Leo-g/python-flask-cmd
+
+Share Improve this answer Follow
+answered
+Mar 31 '16 at 14:57
+
+LeoG
+585●11 gold badge●77 silver badges●2020 bronze badges edited
+Jul 6 at 16:56
+
+This is not a good examble of how to use the subprocess library. Like its documentation says, you should avoid bare Popen in favor of one of the higher-level functions subprocess.check_output or subprocess.run. It's unclear what ./ps_mem is here. – 
+tripleee
+ Aug 23 at 6:48
+Add a comment
+Up vote
+1
+Down vote
+One can get real time CPU and RAM monitoring by combining tqdm and psutil. It may be handy when running heavy computations / processing.
+
+enter image description here
+
+from tqdm import tqdm
+from time import sleep
+import psutil
+
+with tqdm(total=100, desc='cpu%', position=1) as cpubar, tqdm(total=100, desc='ram%', position=0) as rambar:
+    while True:
+        rambar.n=psutil.virtual_memory().percent
+        cpubar.n=psutil.cpu_percent()
+        rambar.refresh()
+        cpubar.refresh()
+        sleep(0.5)
+This code snippet is also available as gist.
+
+Share Improve this answer Follow
+answered
+Oct 10 at 0:26
+
+Karol Zlot
+908●11 gold badge●88 silver badges●1616 bronze badges
+Up vote
+0
+Down vote
+Run with crontab won't print pid
+
+Setup: */1 * * * * sh dog.sh this line in crontab -e
+
+import os
+import re
+
+CUT_OFF = 90
+
+def get_cpu_load():
+    cmd = "ps -Ao user,uid,comm,pid,pcpu --sort=-pcpu | head -n 2 | tail -1"
+    response = os.popen(cmd, 'r').read()
+    arr = re.findall(r'\S+', response)
+    print(arr)
+    needKill = float(arr[-1]) > CUT_OFF
+    if needKill:
+        r = os.popen(f"kill -9 {arr[-2]}")
+        print('kill:', r)
+
+if __name__ == '__main__':
+    # Test CPU with 
+    # $ stress --cpu 1
+    # crontab -e
+    # Every 1 min
+    # */1 * * * * sh dog.sh
+    # ctlr o, ctlr x
+    # crontab -l
+    print(get_cpu_load())
+Share Improve this answer Follow
+answered
+Aug 1 at 15:14
+
+CodeFarmer
+2,396●2020 silver badges●3030 bronze badges
+Up vote
+-12
+Down vote
+I don't believe that there is a well-supported multi-platform library available. Remember that Python itself is written in C so any library is simply going to make a smart decision about which OS-specific code snippet to run, as you suggested above.
+
+Share Improve this answer Follow
+answered
+Nov 9 '08 at 17:25
+
+user35952
+29●11 bronze badge
+1
+psutil can do this, and several statement combinations with the library os – 
+Julio CamPlaz
+ Apr 28 at 9:57
+Add a comment
+Highly active question. Earn 10 reputation (not counting the association bonus) in order to answer this question. The reputation requirement helps protect this question from spam and non-answer activity.
+meta chat tour help blog privacy policy legal contact us cookie settings full site
+2021 Stack Exchange, Inc. user contributions under cc by-sa
+
+
